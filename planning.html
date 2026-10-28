@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Planning PA 21 Argenteuil</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family: Arial, sans-serif; background:#f4f5f7; color:#222; padding:16px; }
+  h1 { font-size:1.4em; margin-bottom:4px; }
+  .sub { font-size:0.9em; color:#555; margin-bottom:14px; }
+  .toolbar { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:14px; }
+  button { padding:8px 14px; border:none; border-radius:6px; cursor:pointer; font-size:0.9em; }
+  .btn-add { background:#2563eb; color:#fff; }
+  .btn-save { background:#16a34a; color:#fff; }
+  .btn-reset { background:#dc2626; color:#fff; }
+  table { border-collapse:collapse; width:100%; background:#fff; border-radius:8px; overflow:hidden; box-shadow:0 1px 4px rgba(0,0,0,.12); }
+  th, td { border:1px solid #d9dde3; padding:8px; text-align:left; font-size:0.85em; }
+  th { background:#eef1f5; position:sticky; top:0; }
+  .task-name { min-width:220px; font-weight:bold; cursor:pointer; }
+  .task-name:hover { text-decoration:underline; }
+  .cell { min-width:70px; text-align:center; cursor:pointer; user-select:none; transition:transform .1s; }
+  .cell:hover { transform:scale(1.05); }
+  .cell.done { background:#86efac !important; color:#14532d; font-weight:bold; }
+  .prio1 { background:#fecaca; }
+  .prio2 { background:#fed7aa; }
+  .prio3 { background:#fde68a; }
+  .lot-vesda { background:#93c5fd; }
+  .lot-securite { background:#fca5a5; }
+  .lot-portes { background:#67e8f9; }
+  .lot-uae { background:#c4b5fd; }
+  .lot-cvc { background:#fde047; }
+  .legend { display:flex; flex-wrap:wrap; gap:10px; margin:12px 0; font-size:0.8em; }
+  .legend span { display:inline-flex; align-items:center; gap:4px; }
+  .swatch { width:14px; height:14px; border-radius:3px; border:1px solid #999; }
+  .note { font-size:0.75em; color:#666; margin-top:10px; }
+  @media (max-width:700px) { body { padding:8px; } th, td { padding:5px; font-size:0.75em; } .task-name { min-width:140px; } }
+</style>
+</head>
+<body>
+<h1>Planning chantier PA 21 — Argenteuil</h1>
+<div class="sub">BYES · Phase 2 · Data 2 (DH7 à DH12, gantry, BPU storage) · 8 VESDA par Data Hall</div>
+
+<div class="toolbar">
+  <button class="btn-add" onclick="addTask()">+ Ajouter une tâche</button>
+  <button class="btn-save" onclick="save()">Sauvegarder</button>
+  <button class="btn-reset" onclick="reset()">Réinitialiser</button>
+</div>
+
+<div class="legend">
+  <span><span class="swatch" style="background:#93c5fd"></span> VESDA</span>
+  <span><span class="swatch" style="background:#fca5a5"></span> Mise en sécurité</span>
+  <span><span class="swatch" style="background:#67e8f9"></span> Portes coupe-feu</span>
+  <span><span class="swatch" style="background:#c4b5fd"></span> UAE</span>
+  <span><span class="swatch" style="background:#fde047"></span> CVC</span>
+  <span><span class="swatch" style="background:#86efac"></span> Fait</span>
+</div>
+
+<table id="grid">
+  <thead>
+    <tr>
+      <th>Tâche</th>
+      <th>Priorité</th>
+      <th>Lot</th>
+      <th>Lun</th><th>Mar</th><th>Mer</th><th>Jeu</th><th>Ven</th><th>Sam</th><th>Dim</th>
+    </tr>
+  </thead>
+  <tbody id="rows"></tbody>
+</table>
+
+<p class="note">Clic sur une case = cocher/décocher · Clic droit = changer le lot · Double-clic sur le nom = modifier la tâche · Les données sont sauvées dans le navigateur (localStorage).</p>
+
+<script>
+const LOTS = {
+  vesda: { label: 'VESDA', cls: 'lot-vesda' },
+  securite: { label: 'Mise en sécurité', cls: 'lot-securite' },
+  portes: { label: 'Portes CF', cls: 'lot-portes' },
+  uae: { label: 'UAE', cls: 'lot-uae' },
+  cvc: { label: 'CVC', cls: 'lot-cvc' }
+);
+
+let tasks = [
+  { name: 'VESDA — raccordement et mise en service (48 VESDA, 8 par DH)', prio: 1, lot: 'vesda', days: [true,true,true,false,false,false,false] },
+  { name: 'Fin des tests de détection incendie — tout doit être testé', prio: 1, lot: 'vesda', days: [false,false,true,true,true,false,false] },
+  { name: 'Test mise en sécurité — désenfumage (moteurs + CVC sous tension)', prio: 2, lot: 'securite', days: [false,false,false,true,true,false,false] },
+  { name: 'Test mise en sécurité — sirènes (lignes posées, dépannage dérangements)', prio: 2, lot: 'securite', days: [false,false,false,false,true,true,false] },
+  { name: 'Portes coupe-feu — fin raccordement puis test', prio: 2, lot: 'portes', days: [false,false,false,false,false,true,true] },
+  { name: 'Mise à jour UAE — Data 1 + intégration Data 2 (SDI, CMSI) — ÉCHÉANCE 2 SEMAINES', prio: 1, lot: 'uae', days: [true,true,false,false,false,false,false] },
+  { name: 'Mise à jour fonds de plan — Data 1, Data 2, générateur building, FOH (SDI, CMSI)', prio: 3, lot: 'uae', days: [false,false,true,true,false,false,false] },
+  { name: 'Prise en compte modifs UAE vs derniers indices de plan (phase 1 et 2)', prio: 3, lot: 'uae', days: [false,false,false,true,true,false,false] },
+  { name: 'Mise en service licence extension', prio: 3, lot: 'uae', days: [false,false,false,false,true,false,false] },
+  { name: 'CVC — mise sous tension moteurs désenfumage (non urgent, disjoncteurs coupés)', prio: 3, lot: 'cvc', days: [false,false,false,false,false,false,true] }
+];
+
+function render() {
+  const tbody = document.getElementById('rows);
+  tbody.innerHTML = '';
+  tasks.forEach((t, i) => {
+    const tr = document.createElement('tr);
+    const tdName = document.createElement('td);
+    tdName.className = 'task-name';
+    tdName.textContent = t.name;
+    tdName.ondblclick = () => {
+      const n = prompt('Modifier la tâche :', t.name);
+      if (n !== null) { t.name = n; render(); }
+    };
+    tr.appendChild(tdName);
+    const tdPrio = document.createElement('td);
+    tdPrio.textContent = 'P' + t.prio;
+    tdPrio.className = 'prio' + t.prio;
+    tr.appendChild(tdPrio);
+    const tdLot = document.createElement('td);
+    tdLot.textContent = LOTS[t.lot].label;
+    tdLot.className = LOTS[t.lot].cls;
+    tr.appendChild(tdLot);
+    t.days.forEach((d, j) => {
+      const td = document.createElement('td');
+      td.className = 'cell ' + LOTS[t.lot].cls + (d ? ' done' : '');
+      td.textContent = d ? '✓' : '';
+      td.onclick = () => { t.days[j] = !t.days[j]; render(); };
+      td.oncontextmenu = (e) => {
+        e.preventDefault();
+        const keys = Object.keys(LOTS);
+        const cur = keys.indexOf(t.lot);
+        t.lot = keys[(cur + 1) % keys.length];
+        render();
+      };
+      tr.appendChild(td);
+    });
+    tbody.appendChild(tr);
+  });
+}
+
+function addTask() {
+  const name = prompt('Nom de la nouvelle tâche :);
+  if (!name) return;
+  tasks.push({ name, prio: 3, lot: 'securite', days: [false,false,false,false,false,false,false] });
+  render();
+}
+
+function save() {
+  localStorage.setItem('planning_pa21', JSON.stringify(tasks));
+  alert('Planning sauvegardé dans le navigateur.');
+}
+
+function reset() {
+  if (confirm('Réinitialiser le planning ?')) {
+    localStorage.removeItem('planning_pa21);
+    location.reload();
+  }
+}
+
+const saved = localStorage.getItem('planning_pa21);
+if (saved) {
+  try { tasks = JSON.parse(saved); } catch(e) {}
+}
+render();
+</script>
+</body>
+</html>
